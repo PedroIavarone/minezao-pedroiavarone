@@ -11,56 +11,94 @@
 <script>
 const DEAD = 0.25;
 const pressed = {};
+let frame, fdoc, fwin, canvas;
+
+document.getElementById('game').addEventListener('load', () => {
+  frame = document.getElementById('game');
+  try {
+    fdoc = frame.contentDocument;
+    fwin = frame.contentWindow;
+    canvas = fdoc.querySelector('canvas');
+  } catch(e) {}
+});
+
+function getTargets() {
+  const els = [];
+  try {
+    if (canvas) els.push(canvas);
+    if (fdoc) els.push(fdoc);
+    if (fwin) els.push(fwin);
+  } catch(e) {}
+  els.push(document);
+  return els;
+}
 
 function fireKey(code, down) {
   if (pressed[code] === down) return;
   pressed[code] = down;
   const type = down ? 'keydown' : 'keyup';
-  const event = new KeyboardEvent(type, {
-    code, key: code, bubbles: true, cancelable: true
+  getTargets().forEach(el => {
+    try { el.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true })); } catch(e) {}
   });
-
-  const frame = document.getElementById('game');
-  try {
-    const fdoc = frame.contentDocument;
-    const fwin = frame.contentWindow;
-    fdoc.dispatchEvent(event);
-    fwin.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
-    const canvas = fdoc.querySelector('canvas');
-    if (canvas) canvas.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
-  } catch(e) {}
-
-  document.dispatchEvent(event);
 }
+
+function fireMouse(button, down) {
+  const key = 'mouse' + button;
+  if (pressed[key] === down) return;
+  pressed[key] = down;
+  const type = down ? 'mousedown' : 'mouseup';
+  getTargets().forEach(el => {
+    try { el.dispatchEvent(new MouseEvent(type, { button, buttons: down ? (button === 0 ? 1 : 2) : 0, bubbles: true, cancelable: true })); } catch(e) {}
+  });
+}
+
+function fireScroll(dy) {
+  getTargets().forEach(el => {
+    try { el.dispatchEvent(new WheelEvent('wheel', { deltaY: dy, bubbles: true, cancelable: true })); } catch(e) {}
+  });
+}
+
+let lastScrollTime = 0;
 
 setInterval(() => {
   const gp = navigator.getGamepads?.()[0];
   if (!gp) return;
 
-  // Botões
+  // Teclado
   const btnMap = {
     0: 'Space',      // A = pular
     1: 'ShiftLeft',  // B = agachar
     2: 'KeyQ',       // X = largar item
     3: 'KeyE',       // Y = inventário
-    4: 'KeyF',       // LB = interagir
-    5: 'KeyR',       // RB = 
-    6: 'KeyF',       // LT
-    9: 'Escape',     // Menu
-    8: 'KeyF',       // View
+    9: 'Escape',     // Menu = Esc
+    8: 'KeyF',       // View = interagir
+    10: 'KeyF',      // L3
   };
-
   for (const [i, code] of Object.entries(btnMap)) {
     fireKey(code, gp.buttons[i]?.pressed);
   }
 
   // Analógico esquerdo → WASD
-  const lx = gp.axes[0];
-  const ly = gp.axes[1];
+  const lx = gp.axes[0], ly = gp.axes[1];
   fireKey('KeyW', ly < -DEAD);
   fireKey('KeyS', ly >  DEAD);
   fireKey('KeyA', lx < -DEAD);
   fireKey('KeyD', lx >  DEAD);
+
+  // RB ou RT = clique esquerdo (quebrar bloco)
+  const lb = gp.buttons[4]?.pressed;
+  const rb = gp.buttons[5]?.pressed;
+  fireMouse(2, lb); // LB = clique direito (colocar bloco)
+  fireMouse(0, rb); // RB = clique esquerdo (quebrar bloco)
+
+  // D-pad cima/baixo = trocar item
+  const now = Date.now();
+  if (now - lastScrollTime > 200) {
+    if (gp.buttons[12]?.pressed) { fireScroll(-100); lastScrollTime = now; } // D-up
+    if (gp.buttons[13]?.pressed) { fireScroll(100);  lastScrollTime = now; } // D-down
+    if (gp.buttons[14]?.pressed) { fireScroll(-100); lastScrollTime = now; } // D-left
+    if (gp.buttons[15]?.pressed) { fireScroll(100);  lastScrollTime = now; } // D-right
+  }
 
 }, 40);
 </script>
