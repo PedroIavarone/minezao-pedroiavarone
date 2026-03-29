@@ -9,38 +9,60 @@
 <body>
 <iframe id="game" src="EaglercraftX_1.8_u53_Offline_Signed.html" allowfullscreen></iframe>
 <script>
-const DEAD = 0.2;
+const DEAD = 0.25;
 const pressed = {};
 
-function fireKey(doc, code, down) {
+function fireKey(code, down) {
   if (pressed[code] === down) return;
   pressed[code] = down;
   const type = down ? 'keydown' : 'keyup';
-  [doc, doc.activeElement].forEach(el => {
-    el?.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }));
+  const event = new KeyboardEvent(type, {
+    code, key: code, bubbles: true, cancelable: true
   });
+
+  const frame = document.getElementById('game');
+  try {
+    const fdoc = frame.contentDocument;
+    const fwin = frame.contentWindow;
+    fdoc.dispatchEvent(event);
+    fwin.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
+    const canvas = fdoc.querySelector('canvas');
+    if (canvas) canvas.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
+  } catch(e) {}
+
+  document.dispatchEvent(event);
 }
 
 setInterval(() => {
   const gp = navigator.getGamepads?.()[0];
   if (!gp) return;
-  const doc = document.getElementById('game').contentDocument || document;
 
+  // Botões
   const btnMap = {
-    0: 'Space', 1: 'ShiftLeft', 2: 'KeyQ',
-    3: 'KeyE', 4: 'KeyF', 5: 'KeyF', 9: 'Escape'
+    0: 'Space',      // A = pular
+    1: 'ShiftLeft',  // B = agachar
+    2: 'KeyQ',       // X = largar item
+    3: 'KeyE',       // Y = inventário
+    4: 'KeyF',       // LB = interagir
+    5: 'KeyR',       // RB = 
+    6: 'KeyF',       // LT
+    9: 'Escape',     // Menu
+    8: 'KeyF',       // View
   };
 
   for (const [i, code] of Object.entries(btnMap)) {
-    fireKey(doc, code, gp.buttons[i]?.pressed);
+    fireKey(code, gp.buttons[i]?.pressed);
   }
 
-  const lx = gp.axes[0], ly = gp.axes[1];
-  fireKey(doc, 'KeyW', ly < -DEAD);
-  fireKey(doc, 'KeyS', ly >  DEAD);
-  fireKey(doc, 'KeyA', lx < -DEAD);
-  fireKey(doc, 'KeyD', lx >  DEAD);
-}, 50);
+  // Analógico esquerdo → WASD
+  const lx = gp.axes[0];
+  const ly = gp.axes[1];
+  fireKey('KeyW', ly < -DEAD);
+  fireKey('KeyS', ly >  DEAD);
+  fireKey('KeyA', lx < -DEAD);
+  fireKey('KeyD', lx >  DEAD);
+
+}, 40);
 </script>
 </body>
 </html>
